@@ -79,11 +79,21 @@ pub fn verify_block_unordered(header: Header, bytes: Bytes, engine: &Engine, che
 		}
 	}
 	// Verify transactions.
+	let mut tx_counters = HashMap::new();
 	let mut transactions = Vec::new();
+	let max_txs_per_account_per_block = if header.number() >= engine.params().dust_protection_transition { Some(engine.params().max_txs_per_account_per_block) } else { None };
 	{
 		let v = BlockView::new(&bytes);
 		for t in v.transactions() {
 			let t = engine.verify_transaction(t, &header)?;
+			if let Some(max_txs) = max_txs_per_account_per_block {
+				// TODO: filter out UNSIGNED_SENDER
+				let count = tx_counters.entry(t.sender()).or_insert(0);
+				if *count == max_txs {
+					return Err(BlockError::TooManyTransactions(t.sender()).into());
+				}
+				*count += 1;
+			}
 			transactions.push(t);
 		}
 	}

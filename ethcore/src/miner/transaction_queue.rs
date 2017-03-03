@@ -1068,19 +1068,28 @@ impl TransactionQueue {
 
 	/// Returns top transactions from the queue ordered by priority.
 	pub fn top_transactions(&self) -> Vec<SignedTransaction> {
-		self.top_transactions_at(BlockNumber::max_value(), u64::max_value())
+		self.top_transactions_at(BlockNumber::max_value(), u64::max_value(), None)
 
 	}
 
-	fn filter_pending_transaction<F>(&self, best_block: BlockNumber, best_timestamp: u64, mut f: F)
+	fn filter_pending_transaction<F>(&self, best_block: BlockNumber, best_timestamp: u64, max_per_sender: Option<u64>, mut f: F)
 		where F: FnMut(&VerifiedTransaction) {
 
 		let mut delayed = HashSet::new();
+		let mut tx_counters = HashMap::new();
 		for t in self.current.by_priority.iter() {
 			let tx = self.by_hash.get(&t.hash).expect("All transactions in `current` and `future` are always included in `by_hash`");
 			let sender = tx.sender();
 			if delayed.contains(&sender) {
 				continue;
+			}
+			if let Some(max) = max_per_sender {
+				// TODO: filter UNSIGNED_SENDER
+				let count = tx_counters.entry(sender).or_insert(0);
+				if *count == max {
+					continue;
+				}
+				*count += 1;
 			}
 			let delay = match tx.condition {
 				Some(Condition::Number(n)) => n > best_block,
@@ -1096,16 +1105,16 @@ impl TransactionQueue {
 	}
 
 	/// Returns top transactions from the queue ordered by priority.
-	pub fn top_transactions_at(&self, best_block: BlockNumber, best_timestamp: u64) -> Vec<SignedTransaction> {
+	pub fn top_transactions_at(&self, best_block: BlockNumber, best_timestamp: u64, max_per_sender: Option<u64>) -> Vec<SignedTransaction> {
 		let mut r = Vec::new();
-		self.filter_pending_transaction(best_block, best_timestamp, |tx| r.push(tx.transaction.clone()));
+		self.filter_pending_transaction(best_block, best_timestamp, max_per_sender, |tx| r.push(tx.transaction.clone()));
 		r
 	}
 
 	/// Return all ready transactions.
 	pub fn pending_transactions(&self, best_block: BlockNumber, best_timestamp: u64) -> Vec<PendingTransaction> {
 		let mut r = Vec::new();
-		self.filter_pending_transaction(best_block, best_timestamp, |tx| r.push(PendingTransaction::new(tx.transaction.clone(), tx.condition.clone())));
+		self.filter_pending_transaction(best_block, best_timestamp, None, |tx| r.push(PendingTransaction::new(tx.transaction.clone(), tx.condition.clone())));
 		r
 	}
 
@@ -2189,9 +2198,9 @@ pub mod test {
 		// then
 		assert_eq!(res1, TransactionImportResult::Current);
 		assert_eq!(res2, TransactionImportResult::Current);
-		let top = txq.top_transactions_at(0, 0);
+		let top = txq.top_transactions_at(0, 0, None);
 		assert_eq!(top.len(), 0);
-		let top = txq.top_transactions_at(1, 0);
+		let top = txq.top_transactions_at(1, 0, None);
 		assert_eq!(top.len(), 2);
 	}
 

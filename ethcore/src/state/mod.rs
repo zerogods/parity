@@ -105,6 +105,10 @@ impl AccountEntry {
 		self.state == AccountState::Dirty
 	}
 
+	fn is_null(&self) -> bool {
+		self.account.as_ref().map_or(false, |a| a.is_null())
+	}
+
 	/// Clone dirty data into new `AccountEntry`. This includes
 	/// basic account data and modified storage keys.
 	/// Returns None if clean.
@@ -259,13 +263,11 @@ enum RequireCache {
 
 /// Mode of dealing with null accounts.
 #[derive(PartialEq)]
-pub enum CleanupMode<'a> {
+pub enum CleanupMode {
 	/// Create accounts which would be null.
 	ForceCreate,
 	/// Don't delete null accounts upon touching, but also don't create them.
 	NoEmpty,
-	/// Add encountered null accounts to the provided kill-set, to be deleted later.
-	KillEmpty(&'a mut HashSet<Address>),
 }
 
 const SEC_TRIE_DB_UNWRAP_STR: &'static str = "A state can only be created with valid root. Creating a SecTrieDB with a valid root will not fail. \
@@ -537,13 +539,8 @@ impl<B: Backend> State<B> {
 		let is_value_transfer = !incr.is_zero();
 		if is_value_transfer || (cleanup_mode == CleanupMode::ForceCreate && !self.exists(a)?) {
 			self.require(a, false)?.add_balance(incr);
-		} else {
-			match cleanup_mode {
-				CleanupMode::KillEmpty(set) => if !is_value_transfer && self.exists(a)? && !self.exists_and_not_null(a)? {
-					set.insert(a.clone());
-				},
-				_ => {}
-			}
+		} else if self.exists(a)? {
+			self.require(a, false)?;
 		}
 
 		Ok(())
@@ -619,34 +616,28 @@ impl<B: Backend> State<B> {
 		Executive::new(self, env_info, engine, &vm_factory).transact(t, options)
 	}
 
-
-	/// Commit accounts to SecTrieDBMut. This is similar to cpp-ethereum's dev::eth::commit.
-	/// `accounts` is mutable because we may need to commit the code or storage and record that.
+	/// Commits our cached account changes into the trie.
 	#[cfg_attr(feature="dev", allow(match_ref_pats))]
 	#[cfg_attr(feature="dev", allow(needless_borrow))]
-	fn commit_into(
-		factories: &Factories,
-		db: &mut B,
-		root: &mut H256,
-		accounts: &mut HashMap<Address, AccountEntry>
-	) -> Result<(), Error> {
+	pub fn commit(&mut self) -> Result<(), Error> {
 		// first, commit the sub trees.
+		let mut accounts = self.cache.borrow_mut();
 		for (address, ref mut a) in accounts.iter_mut().filter(|&(_, ref a)| a.is_dirty()) {
 			if let Some(ref mut account) = a.account {
 				let addr_hash = account.address_hash(address);
 				{
-					let mut account_db = factories.accountdb.create(db.as_hashdb_mut(), addr_hash);
-					account.commit_storage(&factories.trie, account_db.as_hashdb_mut())?;
+					let mut account_db = self.factories.accountdb.create(self.db.as_hashdb_mut(), addr_hash);
+					account.commit_storage(&self.factories.trie, account_db.as_hashdb_mut())?;
 					account.commit_code(account_db.as_hashdb_mut());
 				}
 				if !account.is_empty() {
-					db.note_non_null_account(address);
+					self.db.note_non_null_account(address);
 				}
 			}
 		}
 
 		{
-			let mut trie = factories.trie.from_existing(db.as_hashdb_mut(), root)?;
+			let mut trie = self.factories.trie.from_existing(self.db.as_hashdb_mut(), &mut self.root)?;
 			for (address, ref mut a) in accounts.iter_mut().filter(|&(_, ref a)| a.is_dirty()) {
 				a.state = AccountState::Committed;
 				match a.account {
@@ -656,7 +647,7 @@ impl<B: Backend> State<B> {
 					None => {
 						trie.remove(address)?;
 					},
-				}
+				};
 			}
 		}
 
@@ -672,15 +663,23 @@ impl<B: Backend> State<B> {
 		}
 	}
 
-	/// Commits our cached account changes into the trie.
-	pub fn commit(&mut self) -> Result<(), Error> {
-		assert!(self.checkpoints.borrow().is_empty());
-		Self::commit_into(&self.factories, &mut self.db, &mut self.root, &mut *self.cache.borrow_mut())
-	}
-
 	/// Clear state cache
 	pub fn clear(&mut self) {
 		self.cache.borrow_mut().clear();
+	}
+
+	/// Remove any touched empty or dust accounts.
+	pub fn kill_garbage(&mut self, remove_empty_touched: bool, min_balance: &Option<U256>) -> trie::Result<()> {
+		let to_kill: HashSet<_> = {
+			self.cache.borrow().iter().filter_map(|(address, ref a)|
+			if a.is_dirty() && (remove_empty_touched && a.is_null() || min_balance.map_or(false, |ref balance| a.account.as_ref().map_or(false, |a| a.is_basic() && a.balance() < balance))) {
+				Some(address.clone())
+			} else { None }).collect()
+		};
+		for address in to_kill {
+			self.kill_account(&address);
+		}
+		Ok(())
 	}
 
 	#[cfg(test)]

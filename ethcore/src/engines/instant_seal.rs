@@ -59,7 +59,7 @@ impl Engine for InstantSeal {
 	}
 
 	fn schedule(&self, _env_info: &EnvInfo) -> Schedule {
-		Schedule::new_post_eip150(usize::max_value(), true, true, true)
+		Schedule::new_post_eip150(usize::max_value(), true, true, true, None)
 	}
 
 	fn seals_internally(&self) -> Option<bool> { Some(true) }

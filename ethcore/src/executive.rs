@@ -451,6 +451,8 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 			}
 		}
 
+		self.state.kill_garbage(schedule.kill_empty, &schedule.min_dust_balance)?;
+
 		match result {
 			Err(evm::Error::Internal(msg)) => Err(ExecutionError::Internal(msg)),
 			Err(exception) => {

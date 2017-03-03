@@ -59,10 +59,9 @@ impl Substate {
 	/// Get the cleanup mode object from this.
 	#[cfg_attr(feature="dev", allow(wrong_self_convention))]
 	pub fn to_cleanup_mode(&mut self, schedule: &Schedule) -> CleanupMode {
-		match (schedule.no_empty, schedule.kill_empty) {
-			(false, _) => CleanupMode::ForceCreate,
-			(true, false) => CleanupMode::NoEmpty,
-			(true, true) => CleanupMode::KillEmpty(&mut self.garbage),
+		match schedule.no_empty {
+			false => CleanupMode::ForceCreate,
+			true => CleanupMode::NoEmpty,
 		}
 	}
 }

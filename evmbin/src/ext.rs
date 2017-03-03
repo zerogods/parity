@@ -31,7 +31,7 @@ pub struct FakeExt {
 impl Default for FakeExt {
 	fn default() -> Self {
 		FakeExt {
-			schedule: Schedule::new_post_eip150(usize::max_value(), true, true, true),
+			schedule: Schedule::new_post_eip150(usize::max_value(), true, true, true, None),
 			store: HashMap::new(),
 			depth: 1,
 		}

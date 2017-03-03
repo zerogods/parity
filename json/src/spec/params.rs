@@ -56,6 +56,18 @@ pub struct Params {
 	/// See `CommonParams` docs.
 	#[serde(rename="validateReceipts")]
 	pub validate_receipts: Option<bool>,
+
+	/// See `CommonParams` docs.
+	#[serde(rename="dustProtectionTransition")]
+	pub dust_protection_transition: Option<Uint>,
+
+	/// See `CommonParams` docs.
+	#[serde(rename="minDustBalance")]
+	pub min_dust_balance: Option<Uint>,
+
+	/// See `CommonParams` docs.
+	#[serde(rename="maxTxsPerAccountPerBlock")]
+	pub max_txs_per_account_per_block: Option<Uint>,
 }
 
 #[cfg(test)]
