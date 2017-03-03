@@ -132,6 +132,11 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 			return Err(From::from(ExecutionError::NotEnoughBaseGas { required: base_gas_required, got: t.gas }));
 		}
 
+		// TODO: unless UNSIGNED_SENDER
+		if check_nonce && schedule.min_dust_balance.is_some() && !self.state.exists(&sender)? {
+			return Err(From::from(ExecutionError::SenderMustExist));
+		}
+
 		let init_gas = t.gas - base_gas_required;
 
 		// validate transaction nonce
