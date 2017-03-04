@@ -2801,4 +2801,19 @@ pub mod test {
 		// then
 		assert_eq!(txq.top_transactions().len(), 1);
 	}
+
+	#[test]
+	fn should_not_return_more_than_max_tx_per_account() {
+		// given
+		let keypair = Random.generate().unwrap();
+		let mut txq = TransactionQueue::default();
+		// when
+		for nonce in 123..130 {
+			let tx = new_unsigned_tx(nonce.into(), default_gas_val(), default_gas_price()).sign(keypair.secret(), None);
+			txq.add(tx, TransactionOrigin::External, 0, None, &default_tx_provider()).unwrap();
+		}
+
+		// then
+		assert_eq!(txq.top_transactions_at(BlockNumber::max_value(), u64::max_value(), Some(4)).len(), 4);
+	}
 }

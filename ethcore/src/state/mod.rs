@@ -672,7 +672,7 @@ impl<B: Backend> State<B> {
 	pub fn kill_garbage(&mut self, remove_empty_touched: bool, min_balance: &Option<U256>) -> trie::Result<()> {
 		let to_kill: HashSet<_> = {
 			self.cache.borrow().iter().filter_map(|(address, ref a)|
-			if a.is_dirty() && (remove_empty_touched && a.is_null() || min_balance.map_or(false, |ref balance| a.account.as_ref().map_or(false, |a| a.is_basic() && a.balance() < balance))) {
+			if a.is_dirty() && ((remove_empty_touched && a.is_null()) || min_balance.map_or(false, |ref balance| a.account.as_ref().map_or(false, |a| a.is_basic() && a.balance() < balance))) {
 				Some(address.clone())
 			} else { None }).collect()
 		};
@@ -2042,4 +2042,31 @@ mod tests {
 		new_state.diff_from(state).unwrap();
 	}
 
+	#[test]
+	fn should_kill_garbage() {
+		let a = 1.into();
+		let b = 2.into();
+		let c = 3.into();
+		let path = RandomTempPath::new();
+		let db = get_temp_state_db_in(path.as_path());
+		let (root, db) = {
+			let mut state = State::new(db, U256::from(0), Default::default());
+			state.add_balance(&a, &U256::default(), CleanupMode::ForceCreate).unwrap(); // create an empty account
+			state.add_balance(&b, &(99.into()), CleanupMode::ForceCreate).unwrap(); // create an empty account
+			state.add_balance(&c, &(100.into()), CleanupMode::ForceCreate).unwrap(); // create an empty account
+			state.commit().unwrap();
+			state.drop()
+		};
+
+		let mut state = State::from_existing(db, root, U256::from(0u8), Default::default()).unwrap();
+		state.add_balance(&a, &U256::default(), CleanupMode::NoEmpty).unwrap(); // touch an account
+		state.add_balance(&b, &U256::default(), CleanupMode::NoEmpty).unwrap(); // touch an account
+		state.add_balance(&c, &U256::default(), CleanupMode::NoEmpty).unwrap(); // touch an account
+		state.kill_garbage(true, &None).unwrap();
+		assert!(!state.exists(&a).unwrap());
+		assert!(state.exists(&b).unwrap());
+		state.kill_garbage(true, &Some(100.into())).unwrap();
+		assert!(!state.exists(&b).unwrap());
+		assert!(state.exists(&c).unwrap());
+	}
 }

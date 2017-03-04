@@ -402,6 +402,12 @@ mod tests {
 		verify_block_family(&header, bytes, engine, bc)
 	}
 
+	fn unordered_test(bytes: &[u8], engine: &Engine) -> Result<(), Error> {
+		let header = BlockView::new(bytes).header();
+		verify_block_unordered(header, bytes.to_vec(), engine, false)?;
+		Ok(())
+	}
+
 	#[test]
 	#[cfg_attr(feature="dev", allow(similar_names))]
 	fn test_verify_block() {
@@ -566,5 +572,36 @@ mod tests {
 			TooManyUncles(OutOfBounds { max: Some(engine.maximum_uncle_count()), min: None, found: bad_uncles.len() }));
 
 		// TODO: some additional uncle checks
+	}
+
+	#[test]
+	fn dust_protection() {
+		use ethkey::{Generator, Random};
+		use types::transaction::{Transaction, Action};
+		use engines::NullEngine;
+
+		let mut params = CommonParams::default();
+		params.dust_protection_transition = 0;
+		params.max_txs_per_account_per_block = 2;
+
+		let mut header = Header::default();
+		header.set_number(1);
+
+		let keypair = Random.generate().unwrap();
+		let tx = Transaction {
+			action: Action::Create,
+			value: U256::zero(),
+			data: Vec::new(),
+			gas: 0.into(),
+			gas_price: 0.into(),
+			nonce: U256::zero(),
+		}.sign(keypair.secret(), None);
+
+		let good_transactions = [tx.clone(), tx.clone()];
+		let bad_transactions = [tx.clone(), tx.clone(), tx.clone()];
+
+		let engine = NullEngine::new(params, BTreeMap::new());
+		check_fail(unordered_test(&create_test_block_with_data(&header, &bad_transactions, &[]), &engine), TooManyTransactions(keypair.address()));
+		unordered_test(&create_test_block_with_data(&header, &good_transactions, &[]), &engine).unwrap();
 	}
 }
