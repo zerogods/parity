@@ -72,6 +72,8 @@ pub enum ProvedExecution {
 	Complete(Executed),
 }
 
+const RIPEMD_BUILTIN: Address = H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3]);
+
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 /// Account modification state. Used to check if the account was
 /// Modified in between commits and overall.
@@ -268,6 +270,8 @@ pub enum CleanupMode {
 	ForceCreate,
 	/// Don't delete null accounts upon touching, but also don't create them.
 	NoEmpty,
+	/// Add encountered null accounts to the dirty-set, to be deleted later.
+	KillEmpty,
 }
 
 const SEC_TRIE_DB_UNWRAP_STR: &'static str = "A state can only be created with valid root. Creating a SecTrieDB with a valid root will not fail. \
@@ -539,7 +543,7 @@ impl<B: Backend> State<B> {
 		let is_value_transfer = !incr.is_zero();
 		if is_value_transfer || (cleanup_mode == CleanupMode::ForceCreate && !self.exists(a)?) {
 			self.require(a, false)?.add_balance(incr);
-		} else if self.exists(a)? {
+		} else if cleanup_mode == CleanupMode::KillEmpty && self.exists(a)? {
 			self.require(a, false)?;
 		}
 
@@ -672,7 +676,8 @@ impl<B: Backend> State<B> {
 	pub fn kill_garbage(&mut self, remove_empty_touched: bool, min_balance: &Option<U256>) -> trie::Result<()> {
 		let to_kill: HashSet<_> = {
 			self.cache.borrow().iter().filter_map(|(address, ref a)|
-			if a.is_dirty() && ((remove_empty_touched && a.is_null()) || min_balance.map_or(false, |ref balance| a.account.as_ref().map_or(false, |a| a.is_basic() && a.balance() < balance))) {
+			if (a.is_dirty() || address == &RIPEMD_BUILTIN) &&
+			((remove_empty_touched && a.is_null()) || min_balance.map_or(false, |ref balance| a.account.as_ref().map_or(false, |a| a.is_basic() && a.balance() < balance))) {
 				Some(address.clone())
 			} else { None }).collect()
 		};
@@ -2044,9 +2049,9 @@ mod tests {
 
 	#[test]
 	fn should_kill_garbage() {
-		let a = 1.into();
-		let b = 2.into();
-		let c = 3.into();
+		let a = 10.into();
+		let b = 20.into();
+		let c = 30.into();
 		let path = RandomTempPath::new();
 		let db = get_temp_state_db_in(path.as_path());
 		let (root, db) = {
@@ -2059,9 +2064,9 @@ mod tests {
 		};
 
 		let mut state = State::from_existing(db, root, U256::from(0u8), Default::default()).unwrap();
-		state.add_balance(&a, &U256::default(), CleanupMode::NoEmpty).unwrap(); // touch an account
-		state.add_balance(&b, &U256::default(), CleanupMode::NoEmpty).unwrap(); // touch an account
-		state.add_balance(&c, &U256::default(), CleanupMode::NoEmpty).unwrap(); // touch an account
+		state.add_balance(&a, &U256::default(), CleanupMode::KillEmpty).unwrap(); // touch an account
+		state.add_balance(&b, &U256::default(), CleanupMode::KillEmpty).unwrap(); // touch an account
+		state.add_balance(&c, &U256::default(), CleanupMode::KillEmpty).unwrap(); // touch an account
 		state.kill_garbage(true, &None).unwrap();
 		assert!(!state.exists(&a).unwrap());
 		assert!(state.exists(&b).unwrap());
