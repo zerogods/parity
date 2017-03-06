@@ -322,10 +322,10 @@ impl Miner {
 		let _timer = PerfTimer::new("prepare_block");
 		let chain_info = chain.chain_info();
 		let (transactions, mut open_block, original_work_hash) = {
-			let max_per_sender = if chain_info.best_block_number + 1 >= self.engine.params().dust_protection_transition {
-				Some(self.engine.params().max_txs_per_account_per_block)
+			let nonce_cap = if chain_info.best_block_number + 1 >= self.engine.params().dust_protection_transition {
+				Some((self.engine.params().nonce_cap_increment * (chain_info.best_block_number + 1)).into())
 			} else { None };
-			let transactions = {self.transaction_queue.lock().top_transactions_at(chain_info.best_block_number, chain_info.best_block_timestamp, max_per_sender)};
+			let transactions = {self.transaction_queue.lock().top_transactions_at(chain_info.best_block_number, chain_info.best_block_timestamp, nonce_cap)};
 			let mut sealing_work = self.sealing_work.lock();
 			let last_work_hash = sealing_work.queue.peek_last_ref().map(|pb| pb.block().fields().header.hash());
 			let best_hash = chain_info.best_block_hash;

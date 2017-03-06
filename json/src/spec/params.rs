@@ -60,14 +60,11 @@ pub struct Params {
 	/// See `CommonParams` docs.
 	#[serde(rename="dustProtectionTransition")]
 	pub dust_protection_transition: Option<Uint>,
-
 	/// See `CommonParams` docs.
-	#[serde(rename="minDustBalance")]
-	pub min_dust_balance: Option<Uint>,
-
+	#[serde(rename="nonceCapIncrement")]
+	pub nonce_cap_increment: Option<Uint>,
 	/// See `CommonParams` docs.
-	#[serde(rename="maxTxsPerAccountPerBlock")]
-	pub max_txs_per_account_per_block: Option<Uint>,
+	pub remove_dust_contracts : Option<bool>,
 }
 
 #[cfg(test)]

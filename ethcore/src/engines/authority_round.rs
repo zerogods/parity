@@ -231,13 +231,7 @@ impl Engine for AuthorityRound {
 	}
 
 	fn schedule(&self, env_info: &EnvInfo) -> Schedule {
-		Schedule::new_post_eip150(
-			usize::max_value(),
-			true,
-			true,
-			true,
-			if env_info.number >= self.params.dust_protection_transition { self.params.min_dust_balance } else { None },
-		)
+		Schedule::from_params(env_info.number, &self.params)
 	}
 
 	fn populate_from_parent(&self, header: &mut Header, parent: &Header, gas_floor_target: U256, _gas_ceil_target: U256) {

@@ -1072,24 +1072,20 @@ impl TransactionQueue {
 
 	}
 
-	fn filter_pending_transaction<F>(&self, best_block: BlockNumber, best_timestamp: u64, max_per_sender: Option<u64>, mut f: F)
+	fn filter_pending_transaction<F>(&self, best_block: BlockNumber, best_timestamp: u64, nonce_cap: Option<U256>, mut f: F)
 		where F: FnMut(&VerifiedTransaction) {
 
 		let mut delayed = HashSet::new();
-		let mut tx_counters = HashMap::new();
 		for t in self.current.by_priority.iter() {
 			let tx = self.by_hash.get(&t.hash).expect("All transactions in `current` and `future` are always included in `by_hash`");
 			let sender = tx.sender();
 			if delayed.contains(&sender) {
 				continue;
 			}
-			if let Some(max) = max_per_sender {
-				// TODO: filter UNSIGNED_SENDER
-				let count = tx_counters.entry(sender).or_insert(0);
-				if *count == max {
+			if let Some(max_nonce) = nonce_cap {
+				if tx.nonce() >= max_nonce {
 					continue;
 				}
-				*count += 1;
 			}
 			let delay = match tx.condition {
 				Some(Condition::Number(n)) => n > best_block,
@@ -1105,9 +1101,9 @@ impl TransactionQueue {
 	}
 
 	/// Returns top transactions from the queue ordered by priority.
-	pub fn top_transactions_at(&self, best_block: BlockNumber, best_timestamp: u64, max_per_sender: Option<u64>) -> Vec<SignedTransaction> {
+	pub fn top_transactions_at(&self, best_block: BlockNumber, best_timestamp: u64, nonce_cap: Option<U256>) -> Vec<SignedTransaction> {
 		let mut r = Vec::new();
-		self.filter_pending_transaction(best_block, best_timestamp, max_per_sender, |tx| r.push(tx.transaction.clone()));
+		self.filter_pending_transaction(best_block, best_timestamp, nonce_cap, |tx| r.push(tx.transaction.clone()));
 		r
 	}
 
@@ -2803,7 +2799,7 @@ pub mod test {
 	}
 
 	#[test]
-	fn should_not_return_more_than_max_tx_per_account() {
+	fn should_not_return_transactions_over_nonce_cap() {
 		// given
 		let keypair = Random.generate().unwrap();
 		let mut txq = TransactionQueue::default();
@@ -2814,6 +2810,6 @@ pub mod test {
 		}
 
 		// then
-		assert_eq!(txq.top_transactions_at(BlockNumber::max_value(), u64::max_value(), Some(4)).len(), 4);
+		assert_eq!(txq.top_transactions_at(BlockNumber::max_value(), u64::max_value(), Some(127.into())).len(), 4);
 	}
 }

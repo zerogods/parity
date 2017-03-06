@@ -123,7 +123,7 @@ pub trait Engine : Sync + Send {
 	/// The nonce with which accounts begin at given block.
 	fn account_start_nonce(&self, block: u64) -> U256 {
 		if block >= self.params().dust_protection_transition {
-			U256::from(self.params().max_txs_per_account_per_block) * U256::from(block)
+			U256::from(self.params().nonce_cap_increment) * U256::from(block)
 		} else {
 			self.params().account_start_nonce
 		}

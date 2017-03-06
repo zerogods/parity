@@ -97,6 +97,7 @@ enum AccountState {
 /// account (`None`)
 struct AccountEntry {
 	account: Option<Account>,
+	clean_balance: Option<U256>,
 	state: AccountState,
 }
 
@@ -127,12 +128,14 @@ impl AccountEntry {
 		AccountEntry {
 			account: self.account.as_ref().map(Account::clone_dirty),
 			state: self.state,
+			clean_balance: self.clean_balance,
 		}
 	}
 
 	// Create a new account entry and mark it as dirty.
 	fn new_dirty(account: Option<Account>) -> AccountEntry {
 		AccountEntry {
+			clean_balance: account.as_ref().map(|a| a.balance().clone()),
 			account: account,
 			state: AccountState::Dirty,
 		}
@@ -141,6 +144,7 @@ impl AccountEntry {
 	// Create a new account entry and mark it as clean.
 	fn new_clean(account: Option<Account>) -> AccountEntry {
 		AccountEntry {
+			clean_balance: account.as_ref().map(|a| a.balance().clone()),
 			account: account,
 			state: AccountState::CleanFresh,
 		}
@@ -149,6 +153,7 @@ impl AccountEntry {
 	// Create a new account entry and mark it as clean and cached.
 	fn new_clean_cached(account: Option<Account>) -> AccountEntry {
 		AccountEntry {
+			clean_balance: account.as_ref().map(|a| a.balance().clone()),
 			account: account,
 			state: AccountState::CleanCached,
 		}
@@ -185,7 +190,7 @@ pub fn check_proof(
 	let res = State::from_existing(
 		backend,
 		root,
-		engine.account_start_nonce(),
+		engine.account_start_nonce(env_info.number),
 		factories
 	);
 
@@ -673,11 +678,15 @@ impl<B: Backend> State<B> {
 	}
 
 	/// Remove any touched empty or dust accounts.
-	pub fn kill_garbage(&mut self, remove_empty_touched: bool, min_balance: &Option<U256>) -> trie::Result<()> {
+	pub fn kill_garbage(&mut self, remove_empty_touched: bool, min_balance: &Option<U256>, kill_contracts: bool) -> trie::Result<()> {
 		let to_kill: HashSet<_> = {
-			self.cache.borrow().iter().filter_map(|(address, ref a)|
-			if (a.is_dirty() || address == &RIPEMD_BUILTIN) &&
-			((remove_empty_touched && a.is_null()) || min_balance.map_or(false, |ref balance| a.account.as_ref().map_or(false, |a| a.is_basic() && a.balance() < balance))) {
+			self.cache.borrow().iter().filter_map(|(address, ref entry)|
+			if (entry.is_dirty() || address == &RIPEMD_BUILTIN) &&
+			((remove_empty_touched && entry.is_null())
+			|| min_balance.map_or(false, |ref balance| entry.account.as_ref().map_or(false, |account|
+				(account.is_basic() || kill_contracts)
+				&& account.balance() < balance && entry.clean_balance.as_ref().map_or(false, |b| account.balance() < b)))) {
+
 				Some(address.clone())
 			} else { None }).collect()
 		};
@@ -2052,26 +2061,38 @@ mod tests {
 		let a = 10.into();
 		let b = 20.into();
 		let c = 30.into();
+		let d = 40.into();
+		let e = 50.into();
 		let path = RandomTempPath::new();
 		let db = get_temp_state_db_in(path.as_path());
 		let (root, db) = {
 			let mut state = State::new(db, U256::from(0), Default::default());
 			state.add_balance(&a, &U256::default(), CleanupMode::ForceCreate).unwrap(); // create an empty account
-			state.add_balance(&b, &(99.into()), CleanupMode::ForceCreate).unwrap(); // create an empty account
-			state.add_balance(&c, &(100.into()), CleanupMode::ForceCreate).unwrap(); // create an empty account
+			state.add_balance(&b, &100.into(), CleanupMode::ForceCreate).unwrap(); // create a dust account
+			state.add_balance(&c, &101.into(), CleanupMode::ForceCreate).unwrap(); // create a normal account
+			state.add_balance(&d, &99.into(), CleanupMode::ForceCreate).unwrap(); // create another dust account
+			state.new_contract(&e, 100.into(), 1.into()); // create a contract account
+			state.init_code(&e, vec![0x00]).unwrap();
 			state.commit().unwrap();
 			state.drop()
 		};
 
 		let mut state = State::from_existing(db, root, U256::from(0u8), Default::default()).unwrap();
 		state.add_balance(&a, &U256::default(), CleanupMode::KillEmpty).unwrap(); // touch an account
-		state.add_balance(&b, &U256::default(), CleanupMode::KillEmpty).unwrap(); // touch an account
-		state.add_balance(&c, &U256::default(), CleanupMode::KillEmpty).unwrap(); // touch an account
-		state.kill_garbage(true, &None).unwrap();
+		state.sub_balance(&b, &1.into()).unwrap(); // touch an account decreasing its balance
+		state.sub_balance(&c, &1.into()).unwrap(); // touch an account decreasing its balance
+		state.sub_balance(&e, &1.into()).unwrap(); // touch an account decreasing its balance
+		state.kill_garbage(true, &None, false).unwrap();
 		assert!(!state.exists(&a).unwrap());
 		assert!(state.exists(&b).unwrap());
-		state.kill_garbage(true, &Some(100.into())).unwrap();
+		state.kill_garbage(true, &Some(100.into()), false).unwrap();
 		assert!(!state.exists(&b).unwrap());
 		assert!(state.exists(&c).unwrap());
+		assert!(state.exists(&d).unwrap());
+		assert!(state.exists(&e).unwrap());
+		state.kill_garbage(true, &Some(100.into()), true).unwrap();
+		assert!(state.exists(&c).unwrap());
+		assert!(state.exists(&d).unwrap());
+		assert!(!state.exists(&e).unwrap());
 	}
 }

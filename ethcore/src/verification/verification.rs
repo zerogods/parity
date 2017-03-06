@@ -79,20 +79,18 @@ pub fn verify_block_unordered(header: Header, bytes: Bytes, engine: &Engine, che
 		}
 	}
 	// Verify transactions.
-	let mut tx_counters = HashMap::new();
 	let mut transactions = Vec::new();
-	let max_txs_per_account_per_block = if header.number() >= engine.params().dust_protection_transition { Some(engine.params().max_txs_per_account_per_block) } else { None };
+	let nonce_cap = if header.number() >= engine.params().dust_protection_transition {
+		Some((engine.params().nonce_cap_increment * header.number()).into())
+	} else { None };
 	{
 		let v = BlockView::new(&bytes);
 		for t in v.transactions() {
 			let t = engine.verify_transaction(t, &header)?;
-			if let Some(max_txs) = max_txs_per_account_per_block {
-				// TODO: filter out UNSIGNED_SENDER
-				let count = tx_counters.entry(t.sender()).or_insert(0);
-				if *count == max_txs {
+			if let Some(max_nonce) = nonce_cap {
+				if t.nonce >= max_nonce {
 					return Err(BlockError::TooManyTransactions(t.sender()).into());
 				}
-				*count += 1;
 			}
 			transactions.push(t);
 		}
@@ -582,23 +580,22 @@ mod tests {
 
 		let mut params = CommonParams::default();
 		params.dust_protection_transition = 0;
-		params.max_txs_per_account_per_block = 2;
+		params.nonce_cap_increment = 2;
 
 		let mut header = Header::default();
 		header.set_number(1);
 
 		let keypair = Random.generate().unwrap();
-		let tx = Transaction {
+		let bad_transactions: Vec<_> = (0..3).map(|i| Transaction {
 			action: Action::Create,
 			value: U256::zero(),
 			data: Vec::new(),
 			gas: 0.into(),
-			gas_price: 0.into(),
-			nonce: U256::zero(),
-		}.sign(keypair.secret(), None);
+			gas_price: U256::zero(),
+			nonce: i.into(),
+		}.sign(keypair.secret(), None)).collect();
 
-		let good_transactions = [tx.clone(), tx.clone()];
-		let bad_transactions = [tx.clone(), tx.clone(), tx.clone()];
+		let good_transactions = [bad_transactions[0].clone(), bad_transactions[1].clone()];
 
 		let engine = NullEngine::new(params, BTreeMap::new());
 		check_fail(unordered_test(&create_test_block_with_data(&header, &bad_transactions, &[]), &engine), TooManyTransactions(keypair.address()));

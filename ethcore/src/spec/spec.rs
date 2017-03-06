@@ -59,10 +59,10 @@ pub struct CommonParams {
 	pub validate_receipts: bool,
 	/// Number of first block where dust cleanup rules (EIP-168 and EIP169) begin.
 	pub dust_protection_transition: BlockNumber,
-	/// Minimum balance account required to have no to be considered dust.
-	pub min_dust_balance: Option<U256>,
-	/// Maximum number of transactions a single account can put into the block when dust protection is enabled.
-	pub max_txs_per_account_per_block: u64,
+	/// Nonce cap increase per block. Nonce cap is only checked if dust protection is enabled.
+	pub nonce_cap_increment : u64,
+	/// Enable dust cleanup for contracts.
+	pub remove_dust_contracts : bool,
 }
 
 impl From<ethjson::spec::Params> for CommonParams {
@@ -78,8 +78,8 @@ impl From<ethjson::spec::Params> for CommonParams {
 			eip98_transition: p.eip98_transition.map_or(0, Into::into),
 			validate_receipts: p.validate_receipts.unwrap_or(true),
 			dust_protection_transition: p.dust_protection_transition.map_or(BlockNumber::max_value(), Into::into),
-			min_dust_balance: p.min_dust_balance.map(Into::into),
-			max_txs_per_account_per_block: p.max_txs_per_account_per_block.map_or(64, Into::into),
+			nonce_cap_increment: p.nonce_cap_increment.map_or(64, Into::into),
+			remove_dust_contracts: p.remove_dust_contracts.unwrap_or(false),
 		}
 	}
 }
