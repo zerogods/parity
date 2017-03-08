@@ -96,8 +96,11 @@ enum AccountState {
 /// Account entry can contain existing (`Some`) or non-existing
 /// account (`None`)
 struct AccountEntry {
+	/// Account entry. `None` if account known to be non-existant.
 	account: Option<Account>,
-	clean_balance: Option<U256>,
+	/// Unmodified account balance.
+	old_balance: Option<U256>,
+	/// Entry state.
 	state: AccountState,
 }
 
@@ -126,16 +129,16 @@ impl AccountEntry {
 	/// basic account data and modified storage keys.
 	fn clone_dirty(&self) -> AccountEntry {
 		AccountEntry {
+			old_balance: self.old_balance,
 			account: self.account.as_ref().map(Account::clone_dirty),
 			state: self.state,
-			clean_balance: self.clean_balance,
 		}
 	}
 
 	// Create a new account entry and mark it as dirty.
 	fn new_dirty(account: Option<Account>) -> AccountEntry {
 		AccountEntry {
-			clean_balance: account.as_ref().map(|a| a.balance().clone()),
+			old_balance: account.as_ref().map(|a| a.balance().clone()),
 			account: account,
 			state: AccountState::Dirty,
 		}
@@ -144,7 +147,7 @@ impl AccountEntry {
 	// Create a new account entry and mark it as clean.
 	fn new_clean(account: Option<Account>) -> AccountEntry {
 		AccountEntry {
-			clean_balance: account.as_ref().map(|a| a.balance().clone()),
+			old_balance: account.as_ref().map(|a| a.balance().clone()),
 			account: account,
 			state: AccountState::CleanFresh,
 		}
@@ -153,7 +156,7 @@ impl AccountEntry {
 	// Create a new account entry and mark it as clean and cached.
 	fn new_clean_cached(account: Option<Account>) -> AccountEntry {
 		AccountEntry {
-			clean_balance: account.as_ref().map(|a| a.balance().clone()),
+			old_balance: account.as_ref().map(|a| a.balance().clone()),
 			account: account,
 			state: AccountState::CleanCached,
 		}
@@ -549,7 +552,7 @@ impl<B: Backend> State<B> {
 		if is_value_transfer || (cleanup_mode == CleanupMode::ForceCreate && !self.exists(a)?) {
 			self.require(a, false)?.add_balance(incr);
 		} else if cleanup_mode == CleanupMode::KillEmpty && self.exists(a)? {
-			self.require(a, false)?;
+			self.touch(a)?;
 		}
 
 		Ok(())
@@ -625,6 +628,11 @@ impl<B: Backend> State<B> {
 		Executive::new(self, env_info, engine, &vm_factory).transact(t, options)
 	}
 
+	fn touch(&mut self, a: &Address) -> trie::Result<()> {
+		self.require(a, false)?;
+		Ok(())
+	}
+
 	/// Commits our cached account changes into the trie.
 	#[cfg_attr(feature="dev", allow(match_ref_pats))]
 	#[cfg_attr(feature="dev", allow(needless_borrow))]
@@ -681,11 +689,11 @@ impl<B: Backend> State<B> {
 	pub fn kill_garbage(&mut self, remove_empty_touched: bool, min_balance: &Option<U256>, kill_contracts: bool) -> trie::Result<()> {
 		let to_kill: HashSet<_> = {
 			self.cache.borrow().iter().filter_map(|(address, ref entry)|
-			if (entry.is_dirty() || address == &RIPEMD_BUILTIN) &&
-			((remove_empty_touched && entry.is_null())
-			|| min_balance.map_or(false, |ref balance| entry.account.as_ref().map_or(false, |account|
-				(account.is_basic() || kill_contracts)
-				&& account.balance() < balance && entry.clean_balance.as_ref().map_or(false, |b| account.balance() < b)))) {
+			if (entry.is_dirty() || address == &RIPEMD_BUILTIN) && // Check any modified accounts and 0x3 additionally.
+				((remove_empty_touched && entry.is_null()) // Remove all empty touched accounts.
+				|| min_balance.map_or(false, |ref balance| entry.account.as_ref().map_or(false, |account|
+					(account.is_basic() || kill_contracts) // Remove all basic and optionally contract accounts where balance has been decreased.
+					&& account.balance() < balance && entry.old_balance.as_ref().map_or(false, |b| account.balance() < b)))) {
 
 				Some(address.clone())
 			} else { None }).collect()
