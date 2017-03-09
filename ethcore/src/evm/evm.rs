@@ -59,6 +59,8 @@ pub enum Error {
 		/// What was the stack limit
 		limit: usize
 	},
+	/// When execution tries to modify the state in static context
+	MutableCallInStaticContext,
 	/// Returned on evm internal error. Should never be ignored during development.
 	/// Likely to cause consensus issues.
 	Internal(String),
@@ -79,6 +81,7 @@ impl fmt::Display for Error {
 			BadInstruction { .. } => "Bad instruction",
 			StackUnderflow { .. } => "Stack underflow",
 			OutOfStack { .. } => "Out of stack",
+			MutableCallInStaticContext => "Mutable call in static context",
 			Internal(ref msg) => msg,
 		};
 		message.fmt(f)

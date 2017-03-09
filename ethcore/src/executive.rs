@@ -62,6 +62,7 @@ pub struct Executive<'a, B: 'a + StateBackend> {
 	engine: &'a Engine,
 	vm_factory: &'a Factory,
 	depth: usize,
+	static_flag: bool,
 }
 
 impl<'a, B: 'a + StateBackend> Executive<'a, B> {
@@ -73,17 +74,19 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 			engine: engine,
 			vm_factory: vm_factory,
 			depth: 0,
+			static_flag: false,
 		}
 	}
 
 	/// Populates executive from parent properties. Increments executive depth.
-	pub fn from_parent(state: &'a mut State<B>, info: &'a EnvInfo, engine: &'a Engine, vm_factory: &'a Factory, parent_depth: usize) -> Self {
+	pub fn from_parent(state: &'a mut State<B>, info: &'a EnvInfo, engine: &'a Engine, vm_factory: &'a Factory, parent_depth: usize, static_flag: bool) -> Self {
 		Executive {
 			state: state,
 			info: info,
 			engine: engine,
 			vm_factory: vm_factory,
 			depth: parent_depth + 1,
+			static_flag: static_flag,
 		}
 	}
 
@@ -94,9 +97,11 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 		substate: &'any mut Substate,
 		output: OutputPolicy<'any, 'any>,
 		tracer: &'any mut T,
-		vm_tracer: &'any mut V
+		vm_tracer: &'any mut V,
+		static_call: bool,
 	) -> Externalities<'any, T, V, B> where T: Tracer, V: VMTracer {
-		Externalities::new(self.state, self.info, self.engine, self.vm_factory, self.depth, origin_info, substate, output, tracer, vm_tracer)
+		let is_static = self.static_flag || static_call;
+		Externalities::new(self.state, self.info, self.engine, self.vm_factory, self.depth, origin_info, substate, output, tracer, vm_tracer, is_static)
 	}
 
 	/// This function should be used to execute transaction.
@@ -216,11 +221,12 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 	) -> evm::Result<U256> where T: Tracer, V: VMTracer {
 
 		let depth_threshold = ::io::LOCAL_STACK_SIZE.with(|sz| sz.get() / STACK_SIZE_PER_DEPTH);
+		let static_call = params.call_type == CallType::StaticCall;
 
 		// Ordinary execution - keep VM in same thread
 		if (self.depth + 1) % depth_threshold != 0 {
 			let vm_factory = self.vm_factory;
-			let mut ext = self.as_externalities(OriginInfo::from(&params), unconfirmed_substate, output_policy, tracer, vm_tracer);
+			let mut ext = self.as_externalities(OriginInfo::from(&params), unconfirmed_substate, output_policy, tracer, vm_tracer, static_call);
 			trace!(target: "executive", "ext.schedule.have_delegate_call: {}", ext.schedule().have_delegate_call);
 			return vm_factory.create(params.gas).exec(params, &mut ext).finalize(ext);
 		}
@@ -230,7 +236,7 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 		// https://github.com/aturon/crossbeam/issues/16
 		crossbeam::scope(|scope| {
 			let vm_factory = self.vm_factory;
-			let mut ext = self.as_externalities(OriginInfo::from(&params), unconfirmed_substate, output_policy, tracer, vm_tracer);
+			let mut ext = self.as_externalities(OriginInfo::from(&params), unconfirmed_substate, output_policy, tracer, vm_tracer, static_call);
 
 			scope.spawn(move || {
 				vm_factory.create(params.gas).exec(params, &mut ext).finalize(ext)
@@ -253,13 +259,17 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 		// backup used in case of running out of gas
 		self.state.checkpoint();
 
+		trace!("Executive::call(params={:?}) self.env_info={:?}", params, self.info);
+		if (params.call_type == CallType::StaticCall || self.static_flag) && params.value.value() > 0.into() {
+			return Err(evm::Error::MutableCallInStaticContext);
+		}
+
 		let schedule = self.engine.schedule(self.info);
 
 		// at first, transfer value to destination
 		if let ActionValue::Transfer(val) = params.value {
 			self.state.transfer_balance(&params.sender, &params.address, &val, substate.to_cleanup_mode(&schedule))?;
 		}
-		trace!("Executive::call(params={:?}) self.env_info={:?}", params, self.info);
 
 		if self.engine.is_builtin(&params.code_address) {
 			// if destination is builtin, try to execute it
@@ -358,6 +368,10 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 	) -> evm::Result<U256> where T: Tracer, V: VMTracer {
 		// backup used in case of running out of gas
 		self.state.checkpoint();
+
+		if params.call_type == CallType::StaticCall || self.static_flag {
+			return Err(evm::Error::MutableCallInStaticContext);
+		}
 
 		// part of substate that may be reverted
 		let mut unconfirmed_substate = Substate::new();
@@ -492,7 +506,8 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 				| Err(evm::Error::BadJumpDestination {..})
 				| Err(evm::Error::BadInstruction {.. })
 				| Err(evm::Error::StackUnderflow {..})
-				| Err(evm::Error::OutOfStack {..}) => {
+				| Err(evm::Error::OutOfStack {..})
+				| Err(evm::Error::MutableCallInStaticContext) => {
 					self.state.revert_to_checkpoint();
 			},
 			Ok(_) | Err(evm::Error::Internal(_)) => {

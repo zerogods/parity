@@ -99,6 +99,8 @@ pub struct Schedule {
 	pub no_empty: bool,
 	/// Kill empty accounts if touched.
 	pub kill_empty: bool,
+	/// Static Call opcode enabled.
+	pub static_call: bool,
 }
 
 impl Schedule {
@@ -113,7 +115,7 @@ impl Schedule {
 	}
 
 	/// Schedule for the post-EIP-150-era of the Ethereum main net.
-	pub fn new_post_eip150(max_code_size: usize, fix_exp: bool, no_empty: bool, kill_empty: bool) -> Schedule {
+	pub fn new_post_eip150(max_code_size: usize, fix_exp: bool, no_empty: bool, kill_empty: bool, static_call: bool) -> Schedule {
 		Schedule {
 			exceptional_failed_code_deposit: true,
 			have_delegate_call: true,
@@ -155,6 +157,7 @@ impl Schedule {
 			sub_gas_cap_divisor: Some(64),
 			no_empty: no_empty,
 			kill_empty: kill_empty,
+			static_call: static_call,
 		}
 	}
 
@@ -200,6 +203,7 @@ impl Schedule {
 			sub_gas_cap_divisor: None,
 			no_empty: false,
 			kill_empty: false,
+			static_call: false,
 		}
 	}
 }

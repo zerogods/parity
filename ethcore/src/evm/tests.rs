@@ -86,7 +86,7 @@ impl Ext for FakeExt {
 		Ok(self.store.get(key).unwrap_or(&H256::new()).clone())
 	}
 
-	fn set_storage(&mut self, key: H256, value: H256) -> trie::Result<()> {
+	fn set_storage(&mut self, key: H256, value: H256) -> evm::Result<()> {
 		self.store.insert(key, value);
 		Ok(())
 	}
@@ -155,18 +155,19 @@ impl Ext for FakeExt {
 		Ok(self.codes.get(address).map_or(0, |c| c.len()))
 	}
 
-	fn log(&mut self, topics: Vec<H256>, data: &[u8]) {
+	fn log(&mut self, topics: Vec<H256>, data: &[u8]) -> evm::Result<()> {
 		self.logs.push(FakeLogEntry {
 			topics: topics,
 			data: data.to_vec()
 		});
+		Ok(())
 	}
 
 	fn ret(self, _gas: &U256, _data: &[u8]) -> evm::Result<U256> {
 		unimplemented!();
 	}
 
-	fn suicide(&mut self, _refund_address: &Address) -> trie::Result<()> {
+	fn suicide(&mut self, _refund_address: &Address) -> evm::Result<()> {
 		unimplemented!();
 	}
 

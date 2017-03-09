@@ -48,7 +48,7 @@ pub trait Ext {
 	fn storage_at(&self, key: &H256) -> trie::Result<H256>;
 
 	/// Stores a value for given key.
-	fn set_storage(&mut self, key: H256, value: H256) -> trie::Result<()>;
+	fn set_storage(&mut self, key: H256, value: H256) -> evm::Result<()>;
 
 	/// Determine whether an account exists.
 	fn exists(&self, address: &Address) -> trie::Result<bool>;
@@ -94,7 +94,7 @@ pub trait Ext {
 	fn extcodesize(&self, address: &Address) -> trie::Result<usize>;
 
 	/// Creates log entry with given topics and data
-	fn log(&mut self, topics: Vec<H256>, data: &[u8]);
+	fn log(&mut self, topics: Vec<H256>, data: &[u8]) -> evm::Result<()>;
 
 	/// Should be called when transaction calls `RETURN` opcode.
 	/// Returns gas_left if cost of returning the data is not too high.
@@ -102,7 +102,7 @@ pub trait Ext {
 
 	/// Should be called when contract commits suicide.
 	/// Address to which funds should be refunded.
-	fn suicide(&mut self, refund_address: &Address) -> trie::Result<()> ;
+	fn suicide(&mut self, refund_address: &Address) -> evm::Result<()> ;
 
 	/// Returns schedule.
 	fn schedule(&self) -> &Schedule;

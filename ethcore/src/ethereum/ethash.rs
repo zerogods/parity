@@ -173,7 +173,8 @@ impl Engine for Ethash {
 				self.ethash_params.max_code_size as usize,
 				env_info.number >= self.ethash_params.eip160_transition,
 				env_info.number >= self.ethash_params.eip161abc_transition,
-				env_info.number >= self.ethash_params.eip161d_transition
+				env_info.number >= self.ethash_params.eip161d_transition,
+				env_info.number >= self.params.eip214_transition,
 			)
 		}
 	}

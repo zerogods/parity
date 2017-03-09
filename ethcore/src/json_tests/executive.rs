@@ -75,9 +75,10 @@ impl<'a, T: 'a, V: 'a, B: 'a> TestExt<'a, T, V, B>
 		tracer: &'a mut T,
 		vm_tracer: &'a mut V,
 	) -> trie::Result<Self> {
+		let static_call = false;
 		Ok(TestExt {
 			contract_address: contract_address(&address, &state.nonce(&address)?),
-			ext: Externalities::new(state, info, engine, vm_factory, depth, origin_info, substate, output, tracer, vm_tracer),
+			ext: Externalities::new(state, info, engine, vm_factory, depth, origin_info, substate, output, tracer, vm_tracer, static_call),
 			callcreates: vec![]
 		})
 	}
@@ -90,7 +91,7 @@ impl<'a, T: 'a, V: 'a, B: 'a> Ext for TestExt<'a, T, V, B>
 		self.ext.storage_at(key)
 	}
 
-	fn set_storage(&mut self, key: H256, value: H256) -> trie::Result<()> {
+	fn set_storage(&mut self, key: H256, value: H256) -> evm::Result<()> {
 		self.ext.set_storage(key, value)
 	}
 
@@ -151,7 +152,7 @@ impl<'a, T: 'a, V: 'a, B: 'a> Ext for TestExt<'a, T, V, B>
 		self.ext.extcodesize(address)
 	}
 
-	fn log(&mut self, topics: Vec<H256>, data: &[u8]) {
+	fn log(&mut self, topics: Vec<H256>, data: &[u8]) -> evm::Result<()> {
 		self.ext.log(topics, data)
 	}
 
@@ -159,7 +160,7 @@ impl<'a, T: 'a, V: 'a, B: 'a> Ext for TestExt<'a, T, V, B>
 		self.ext.ret(gas, data)
 	}
 
-	fn suicide(&mut self, refund_address: &Address) -> trie::Result<()> {
+	fn suicide(&mut self, refund_address: &Address) -> evm::Result<()> {
 		self.ext.suicide(refund_address)
 	}
 

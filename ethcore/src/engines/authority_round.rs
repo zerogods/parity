@@ -230,8 +230,9 @@ impl Engine for AuthorityRound {
 		]
 	}
 
-	fn schedule(&self, _env_info: &EnvInfo) -> Schedule {
-		Schedule::new_post_eip150(usize::max_value(), true, true, true)
+	fn schedule(&self, env_info: &EnvInfo) -> Schedule {
+		let eip214 = env_info.number >= self.params.eip214_transition;
+		Schedule::new_post_eip150(usize::max_value(), true, true, true, eip214)
 	}
 
 	fn populate_from_parent(&self, header: &mut Header, parent: &Header, gas_floor_target: U256, _gas_ceil_target: U256) {

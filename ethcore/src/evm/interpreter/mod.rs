@@ -292,14 +292,21 @@ impl<Cost: CostType> Interpreter<Cost> {
 					}
 				};
 			},
-			instructions::CALL | instructions::CALLCODE | instructions::DELEGATECALL => {
+			instructions::CALL | instructions::CALLCODE | instructions::DELEGATECALL | instructions::STATICCALL => {
 				assert!(ext.schedule().call_value_transfer_gas > ext.schedule().call_stipend, "overflow possible");
+				if instruction == instructions::STATICCALL && !ext.schedule().static_call {
+					// STATICCALL is not enabled, yet called
+					return Err(evm::Error::BadInstruction {
+						instruction: instruction
+					});
+				}
+
 				stack.pop_back();
 				let call_gas = provided.expect("`provided` comes through Self::exec from `Gasometer::get_gas_cost_mem`; `gas_gas_mem_cost` guarantees `Some` when instruction is `CALL`/`CALLCODE`/`DELEGATECALL`/`CREATE`; this is one of `CALL`/`CALLCODE`/`DELEGATECALL`; qed");
 				let code_address = stack.pop_back();
 				let code_address = u256_to_address(&code_address);
 
-				let value = if instruction == instructions::DELEGATECALL {
+				let value = if instruction == instructions::DELEGATECALL || instruction ==  instructions::STATICCALL {
 					None
 				} else {
 					Some(stack.pop_back())
@@ -327,6 +334,7 @@ impl<Cost: CostType> Interpreter<Cost> {
 						(&params.address, &params.address, has_balance, CallType::CallCode)
 					},
 					instructions::DELEGATECALL => (&params.sender, &params.address, true, CallType::DelegateCall),
+					instructions::STATICCALL => (&params.sender, &params.address, true, CallType::StaticCall),
 					_ => panic!(format!("Unexpected instruction {} in CALL branch.", instruction))
 				};
 
@@ -378,7 +386,7 @@ impl<Cost: CostType> Interpreter<Cost> {
 					.iter()
 					.map(H256::from)
 					.collect();
-				ext.log(topics, self.mem.read_slice(offset, size));
+				ext.log(topics, self.mem.read_slice(offset, size))?;
 			},
 			instructions::PUSH1...instructions::PUSH32 => {
 				let bytes = instructions::get_push_bytes(instruction);
