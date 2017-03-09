@@ -650,7 +650,7 @@ impl Engine for Tendermint {
 	fn register_client(&self, client: Weak<Client>) {
 		use client::BlockChainClient;
 		if let Some(c) = client.upgrade() {
-			self.height.store(c.chain_info().best_block_number as usize, AtomicOrdering::SeqCst);
+			self.height.store(c.chain_info().best_block_number as usize + 1, AtomicOrdering::SeqCst);
 		}
 		*self.client.write() = Some(client.clone());
 		self.validators.register_contract(client);
