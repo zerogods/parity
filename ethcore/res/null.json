@@ -7,6 +7,7 @@
 		"accountStartNonce": "0x0",
 		"maximumExtraDataSize": "0x20",
 		"minGasLimit": "0x1388",
+		"eip116Transition": "0x7fffffffffffff",
 		"networkID" : "0x2"
 	},
 	"genesis": {

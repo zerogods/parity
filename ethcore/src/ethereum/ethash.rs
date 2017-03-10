@@ -174,7 +174,7 @@ impl Engine for Ethash {
 				env_info.number >= self.ethash_params.eip160_transition,
 				env_info.number >= self.ethash_params.eip161abc_transition,
 				env_info.number >= self.ethash_params.eip161d_transition,
-				env_info.number >= self.params.eip214_transition,
+				env_info.number >= self.params.eip116_transition,
 			)
 		}
 	}

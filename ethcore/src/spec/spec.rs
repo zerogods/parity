@@ -55,8 +55,8 @@ pub struct CommonParams {
 	pub fork_block: Option<(BlockNumber, H256)>,
 	/// Number of first block where EIP-98 rules begin.
 	pub eip98_transition: BlockNumber,
-	/// Number of first block where EIP-214 rules begin.
-	pub eip214_transition: BlockNumber,
+	/// Number of first block where EIP-116 rules begin.
+	pub eip116_transition: BlockNumber,
 }
 
 impl From<ethjson::spec::Params> for CommonParams {
@@ -70,7 +70,7 @@ impl From<ethjson::spec::Params> for CommonParams {
 			min_gas_limit: p.min_gas_limit.into(),
 			fork_block: if let (Some(n), Some(h)) = (p.fork_block, p.fork_hash) { Some((n.into(), h.into())) } else { None },
 			eip98_transition: p.eip98_transition.map_or(0, Into::into),
-			eip214_transition: p.eip214_transition.map_or(0, Into::into),
+			eip116_transition: p.eip116_transition.map_or(0, Into::into),
 		}
 	}
 }
