@@ -252,6 +252,9 @@ pub enum CallType {
 	/// Delegate call
 	#[serde(rename="delegatecall")]
 	DelegateCall,
+	/// Static call
+	#[serde(rename="staticcall")]
+	StaticCall,
 }
 
 impl From<executed::CallType> for CallType {
@@ -261,6 +264,7 @@ impl From<executed::CallType> for CallType {
 			executed::CallType::Call => CallType::Call,
 			executed::CallType::CallCode => CallType::CallCode,
 			executed::CallType::DelegateCall => CallType::DelegateCall,
+			executed::CallType::StaticCall => CallType::StaticCall,
 		}
 	}
 }
