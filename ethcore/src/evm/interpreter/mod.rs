@@ -188,6 +188,12 @@ impl<Cost: CostType> Interpreter<Cost> {
 			});
 		}
 
+		if !schedule.static_call && instruction == instructions::STATICCALL {
+			return Err(evm::Error::BadInstruction {
+				instruction: instruction
+			});
+		}
+
 		if info.tier == instructions::GasPriceTier::Invalid {
 			return Err(evm::Error::BadInstruction {
 				instruction: instruction
@@ -294,12 +300,6 @@ impl<Cost: CostType> Interpreter<Cost> {
 			},
 			instructions::CALL | instructions::CALLCODE | instructions::DELEGATECALL | instructions::STATICCALL => {
 				assert!(ext.schedule().call_value_transfer_gas > ext.schedule().call_stipend, "overflow possible");
-				if instruction == instructions::STATICCALL && !ext.schedule().static_call {
-					// STATICCALL is not enabled, yet called
-					return Err(evm::Error::BadInstruction {
-						instruction: instruction
-					});
-				}
 
 				stack.pop_back();
 				let call_gas = provided.expect("`provided` comes through Self::exec from `Gasometer::get_gas_cost_mem`; `gas_gas_mem_cost` guarantees `Some` when instruction is `CALL`/`CALLCODE`/`DELEGATECALL`/`CREATE`; this is one of `CALL`/`CALLCODE`/`DELEGATECALL`; qed");

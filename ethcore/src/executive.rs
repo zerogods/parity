@@ -256,13 +256,15 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 		tracer: &mut T,
 		vm_tracer: &mut V
 	) -> evm::Result<U256> where T: Tracer, V: VMTracer {
-		// backup used in case of running out of gas
-		self.state.checkpoint();
-
 		trace!("Executive::call(params={:?}) self.env_info={:?}", params, self.info);
 		if (params.call_type == CallType::StaticCall || self.static_flag) && params.value.value() > 0.into() {
+			let trace_info = tracer.prepare_trace_call(&params);
+			tracer.trace_failed_call(trace_info, vec![], evm::Error::MutableCallInStaticContext.into());
 			return Err(evm::Error::MutableCallInStaticContext);
 		}
+
+		// backup used in case of running out of gas
+		self.state.checkpoint();
 
 		let schedule = self.engine.schedule(self.info);
 
@@ -366,12 +368,14 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 		tracer: &mut T,
 		vm_tracer: &mut V
 	) -> evm::Result<U256> where T: Tracer, V: VMTracer {
-		// backup used in case of running out of gas
-		self.state.checkpoint();
-
 		if params.call_type == CallType::StaticCall || self.static_flag {
+			let trace_info = tracer.prepare_trace_create(&params);
+			tracer.trace_failed_create(trace_info, vec![], evm::Error::MutableCallInStaticContext.into());
 			return Err(evm::Error::MutableCallInStaticContext);
 		}
+
+		// backup used in case of running out of gas
+		self.state.checkpoint();
 
 		// part of substate that may be reverted
 		let mut unconfirmed_substate = Substate::new();
