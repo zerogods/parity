@@ -87,7 +87,7 @@ impl<'a, T: 'a, V: 'a, B: 'a> TestExt<'a, T, V, B>
 impl<'a, T: 'a, V: 'a, B: 'a> Ext for TestExt<'a, T, V, B>
 	where T: Tracer, V: VMTracer, B: StateBackend
 {
-	fn storage_at(&self, key: &H256) -> trie::Result<H256> {
+	fn storage_at(&self, key: &H256) -> evm::Result<H256> {
 		self.ext.storage_at(key)
 	}
 
@@ -95,19 +95,19 @@ impl<'a, T: 'a, V: 'a, B: 'a> Ext for TestExt<'a, T, V, B>
 		self.ext.set_storage(key, value)
 	}
 
-	fn exists(&self, address: &Address) -> trie::Result<bool> {
+	fn exists(&self, address: &Address) -> evm::Result<bool> {
 		self.ext.exists(address)
 	}
 
-	fn exists_and_not_null(&self, address: &Address) -> trie::Result<bool> {
+	fn exists_and_not_null(&self, address: &Address) -> evm::Result<bool> {
 		self.ext.exists_and_not_null(address)
 	}
 
-	fn balance(&self, address: &Address) -> trie::Result<U256> {
+	fn balance(&self, address: &Address) -> evm::Result<U256> {
 		self.ext.balance(address)
 	}
 
-	fn origin_balance(&self) -> trie::Result<U256> {
+	fn origin_balance(&self) -> evm::Result<U256> {
 		self.ext.origin_balance()
 	}
 
@@ -144,11 +144,11 @@ impl<'a, T: 'a, V: 'a, B: 'a> Ext for TestExt<'a, T, V, B>
 		MessageCallResult::Success(*gas)
 	}
 
-	fn extcode(&self, address: &Address) -> trie::Result<Arc<Bytes>>  {
+	fn extcode(&self, address: &Address) -> evm::Result<Arc<Bytes>>  {
 		self.ext.extcode(address)
 	}
 
-	fn extcodesize(&self, address: &Address) -> trie::Result<usize> {
+	fn extcodesize(&self, address: &Address) -> evm::Result<usize> {
 		self.ext.extcodesize(address)
 	}
 

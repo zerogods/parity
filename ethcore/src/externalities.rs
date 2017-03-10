@@ -111,8 +111,8 @@ impl<'a, T: 'a, V: 'a, B: 'a> Externalities<'a, T, V, B>
 impl<'a, T: 'a, V: 'a, B: 'a> Ext for Externalities<'a, T, V, B>
 	where T: Tracer, V: VMTracer, B: StateBackend
 {
-	fn storage_at(&self, key: &H256) -> trie::Result<H256> {
-		self.state.storage_at(&self.origin_info.address, key)
+	fn storage_at(&self, key: &H256) -> evm::Result<H256> {
+		self.state.storage_at(&self.origin_info.address, key).map_err(Into::into)
 	}
 
 	fn set_storage(&mut self, key: H256, value: H256) -> evm::Result<()> {
@@ -123,18 +123,20 @@ impl<'a, T: 'a, V: 'a, B: 'a> Ext for Externalities<'a, T, V, B>
 		}
 	}
 
-	fn exists(&self, address: &Address) -> trie::Result<bool> {
-		self.state.exists(address)
+	fn exists(&self, address: &Address) -> evm::Result<bool> {
+		self.state.exists(address).map_err(Into::into)
 	}
 
-	fn exists_and_not_null(&self, address: &Address) -> trie::Result<bool> {
-		self.state.exists_and_not_null(address)
+	fn exists_and_not_null(&self, address: &Address) -> evm::Result<bool> {
+		self.state.exists_and_not_null(address).map_err(Into::into)
 	}
 
-	fn origin_balance(&self) -> trie::Result<U256> { self.balance(&self.origin_info.address) }
+	fn origin_balance(&self) -> evm::Result<U256> {
+		self.balance(&self.origin_info.address).map_err(Into::into)
+	}
 
-	fn balance(&self, address: &Address) -> trie::Result<U256> {
-		self.state.balance(address)
+	fn balance(&self, address: &Address) -> evm::Result<U256> {
+		self.state.balance(address).map_err(Into::into)
 	}
 
 	fn blockhash(&self, number: &U256) -> H256 {
@@ -241,11 +243,11 @@ impl<'a, T: 'a, V: 'a, B: 'a> Ext for Externalities<'a, T, V, B>
 		}
 	}
 
-	fn extcode(&self, address: &Address) -> trie::Result<Arc<Bytes>> {
+	fn extcode(&self, address: &Address) -> evm::Result<Arc<Bytes>> {
 		Ok(self.state.code(address)?.unwrap_or_else(|| Arc::new(vec![])))
 	}
 
-	fn extcodesize(&self, address: &Address) -> trie::Result<usize> {
+	fn extcodesize(&self, address: &Address) -> evm::Result<usize> {
 		Ok(self.state.code_size(address)?.unwrap_or(0))
 	}
 
