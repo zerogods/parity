@@ -18,7 +18,7 @@
 
 use std::sync::Arc;
 use std::collections::HashMap;
-use util::{U256, H256, Address, Bytes, FixedHash};
+use util::{U256, H256, Address, Bytes};
 use ethcore::client::EnvInfo;
 use ethcore::evm::{self, Ext, ContractCreateResult, MessageCallResult, Schedule, CallType};
 

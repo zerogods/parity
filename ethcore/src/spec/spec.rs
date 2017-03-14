@@ -57,6 +57,8 @@ pub struct CommonParams {
 	pub eip98_transition: BlockNumber,
 	/// Number of first block where EIP-116 rules begin.
 	pub eip116_transition: BlockNumber,
+	/// Validate block receipts root.
+	pub validate_receipts: bool,
 }
 
 impl From<ethjson::spec::Params> for CommonParams {
@@ -71,6 +73,7 @@ impl From<ethjson::spec::Params> for CommonParams {
 			fork_block: if let (Some(n), Some(h)) = (p.fork_block, p.fork_hash) { Some((n.into(), h.into())) } else { None },
 			eip98_transition: p.eip98_transition.map_or(0, Into::into),
 			eip116_transition: p.eip116_transition.map_or(0, Into::into),
+			validate_receipts: p.validate_receipts.unwrap_or(true),
 		}
 	}
 }

@@ -57,6 +57,10 @@ pub struct Params {
 	/// See `CommonParams` docs.
 	#[serde(rename="eip116Transition")]
 	pub eip116_transition: Option<Uint>,
+
+	/// See `CommonParams` docs.
+	#[serde(rename="validateReceipts")]
+	pub validate_receipts: Option<bool>,
 }
 
 #[cfg(test)]
