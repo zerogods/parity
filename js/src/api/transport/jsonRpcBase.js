@@ -15,6 +15,7 @@
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
 import EventEmitter from 'eventemitter3';
+import { Logging } from '../subscriptions';
 
 export default class JsonRpcBase extends EventEmitter {
   constructor () {
@@ -23,6 +24,7 @@ export default class JsonRpcBase extends EventEmitter {
     this._id = 1;
     this._debug = false;
     this._connected = false;
+    this._middlewareList = Promise.resolve([]);
   }
 
   encode (method, params) {
@@ -34,6 +36,54 @@ export default class JsonRpcBase extends EventEmitter {
     });
 
     return json;
+  }
+
+  addMiddleware (middleware) {
+    this._middlewareList = Promise
+      .all([
+        middleware,
+        this._middlewareList
+      ])
+      .then(([middleware, middlewareList]) => {
+        // Do nothing if `handlerPromise` resolves to a null-y value.
+        if (middleware == null) {
+          return middlewareList;
+        }
+
+        // don't mutate the original array
+        return middlewareList.concat([middleware]);
+      });
+  }
+
+  _wrapHandlerResult (result) {
+    return {
+      id: this._id,
+      jsonrpc: '2.0',
+      result
+    };
+  }
+
+  execute (method, ...params) {
+    return this._middlewareList.then((middlewareList) => {
+      for (const middleware of middlewareList) {
+        const res = middleware.handle(method, params);
+
+        if (res != null) {
+          const result = this._wrapHandlerResult(res);
+          const json = this.encode(method, params);
+
+          Logging.send(method, params, { json, result });
+
+          return res;
+        }
+      }
+
+      return this._execute(method, params);
+    });
+  }
+
+  _execute () {
+    throw new Error('Missing implementation of JsonRpcBase#_execute');
   }
 
   _setConnected () {

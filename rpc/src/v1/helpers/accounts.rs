@@ -14,7 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-export Http from './http';
-export Ws from './ws';
-export TransportError from './error';
-export Middleware from './middleware';
+use std::sync::{Arc, Weak};
+
+use ethcore::account_provider::AccountProvider;
+use jsonrpc_core::{Error, ErrorCode};
+
+pub fn unwrap_provider(provider: &Option<Weak<AccountProvider>>) -> Result<Arc<AccountProvider>, Error> {
+	match *provider {
+		Some(ref weak) => weak.upgrade().ok_or_else(Error::internal_error),
+		None => Err(Error {
+			code: ErrorCode::InvalidRequest,
+			message: "Method disallowed when running parity as a public node.".into(),
+			data: None,
+		}),
+	}
+}
