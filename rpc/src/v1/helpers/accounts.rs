@@ -15,17 +15,13 @@
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::sync::{Arc, Weak};
-
 use ethcore::account_provider::AccountProvider;
-use jsonrpc_core::{Error, ErrorCode};
+use jsonrpc_core::Error;
+use v1::helpers::errors;
 
 pub fn unwrap_provider(provider: &Option<Weak<AccountProvider>>) -> Result<Arc<AccountProvider>, Error> {
 	match *provider {
 		Some(ref weak) => weak.upgrade().ok_or_else(Error::internal_error),
-		None => Err(Error {
-			code: ErrorCode::InvalidRequest,
-			message: "Method disallowed when running parity as a public node.".into(),
-			data: None,
-		}),
+		None => Err(errors::public_unsupported(None)),
 	}
 }
