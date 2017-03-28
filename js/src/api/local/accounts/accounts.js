@@ -16,6 +16,7 @@
 
 import Account from './account';
 import localStore from 'store';
+import { debounce } from 'lodash';
 
 const NULL_ADDRESS = '0x0000000000000000000000000000000000000000';
 const LS_STORE_KEY = '_parity::localAccounts';
@@ -27,7 +28,10 @@ export default class Accounts {
       store = []
     } = data;
 
-    this._persistTimer = null;
+    this.persist = debounce(() => {
+      localStore.set(LS_STORE_KEY, this);
+    }, 100);
+
     this._last = last;
     this._store = store.map((data) => new Account(this.persist, data));
   }
@@ -66,12 +70,19 @@ export default class Accounts {
     return account;
   }
 
-  remove (address) {
+  remove (address, password) {
     address = address.toLowerCase();
 
     const index = this._store.findIndex((account) => account.address === address);
 
     if (index === -1) {
+      return false;
+    }
+
+    const account = this._store[index];
+
+    if (!account.isValidPassword(password)) {
+      console.log('invalid password');
       return false;
     }
 
@@ -105,14 +116,5 @@ export default class Accounts {
       last: this._last,
       store: this._store
     };
-  }
-
-  persist = () => {
-    clearTimeout(this._persistTimer);
-
-    // Throttle persisting the accounts
-    this._persistTimer = setTimeout(() => {
-      localStore.set(LS_STORE_KEY, this);
-    }, 100);
   }
 }

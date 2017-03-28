@@ -123,9 +123,7 @@ export default class LocalAccountsMiddleware extends Middleware {
     });
 
     register('parity_killAccount', ([address, password]) => {
-      accounts.remove(address);
-
-      return true;
+      return accounts.remove(address, password);
     });
 
     register('signer_confirmRequest', ([id, modify, password]) => {
