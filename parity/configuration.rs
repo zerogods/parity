@@ -711,14 +711,26 @@ impl Configuration {
 	}
 
 	fn rpc_apis(&self) -> String {
-		let mut apis = self.args.flag_rpcapi.clone().unwrap_or(self.args.flag_jsonrpc_apis.clone());
+		let mut apis: Vec<&str> = self.args.flag_rpcapi
+			.as_ref()
+			.unwrap_or(&self.args.flag_jsonrpc_apis)
+			.split(",")
+			.collect();
+
 		if self.args.flag_geth {
-			if !apis.is_empty() {
-				apis.push_str(",");
-			}
-			apis.push_str("personal");
+			apis.push("personal");
 		}
-		apis
+
+		if self.args.flag_public_node {
+			apis.retain(|api| {
+				match *api {
+					"eth" | "net" | "parity" | "rpc" | "web3" => true,
+					_ => false
+				}
+			});
+		}
+
+		apis.join(",")
 	}
 
 	fn cors(cors: Option<&String>) -> Option<Vec<String>> {
