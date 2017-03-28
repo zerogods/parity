@@ -66,9 +66,7 @@ class Transactions {
 
     switch (state.status) {
       case REJECTED:
-        const code = TransportError.ERROR_CODES.REQUEST_REJECTED;
-
-        throw new TransportError(null, code, 'Request has been rejected.');
+        throw TransportError.requestRejected();
       case CONFIRMED:
         return state.hash;
       default:

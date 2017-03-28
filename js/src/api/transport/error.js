@@ -42,7 +42,9 @@ export const ERROR_CODES = {
 };
 
 export default class TransportError extends ExtendableError {
-  static ERROR_CODES = ERROR_CODES;
+  static requestRejected (method = null) {
+    return new TransportError(method, ERROR_CODES.REQUEST_REJECTED, 'Request has been rejected.');
+  }
 
   constructor (method, code, message) {
     const m = `${method}: ${code}: ${message}`;

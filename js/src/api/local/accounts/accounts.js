@@ -15,26 +15,13 @@
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
 import Account from './account';
+import localStore from 'store';
 
 const NULL_ADDRESS = '0x0000000000000000000000000000000000000000';
-const LOCAL_STORAGE_KEY = '_parity::localAccounts';
-
-function fromLocalStorage () {
-  const json = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-
-  if (json == null) {
-    return {};
-  }
-
-  return JSON.parse(json);
-}
-
-function toLocalStorage (data) {
-  window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
-}
+const LS_STORE_KEY = '_parity::localAccounts';
 
 export default class Accounts {
-  constructor (data = fromLocalStorage()) {
+  constructor (data = localStore.get(LS_STORE_KEY) || {}) {
     const {
       last = NULL_ADDRESS,
       store = []
@@ -50,25 +37,29 @@ export default class Accounts {
     const account = Account.fromPrivateKey(this.persist, privateKey, password);
 
     this._store.push(account);
-    this._last = account.address;
+    this.lastAddress = account.address;
 
     this.persist();
 
     return account.address;
   }
 
-  lastUsed () {
+  set lastAddress (value) {
+    this._last = value.toLowerCase();
+  }
+
+  get lastAddress () {
     return this._last;
   }
 
   get (address) {
     address = address.toLowerCase();
 
-    this._last = address;
+    this.lastAddress = address;
 
     const account = this._store.find((account) => account.address === address);
 
-    if (account == null) {
+    if (!account) {
       throw new Error(`Account not found: ${address}`);
     }
 
@@ -84,8 +75,8 @@ export default class Accounts {
       return false;
     }
 
-    if (address === this._last) {
-      this._last = NULL_ADDRESS;
+    if (address === this.lastAddress) {
+      this.lastAddress = NULL_ADDRESS;
     }
 
     this._store.splice(index, 1);
@@ -121,7 +112,7 @@ export default class Accounts {
 
     // Throttle persisting the accounts
     this._persistTimer = setTimeout(() => {
-      toLocalStorage(this);
+      localStore.set(LS_STORE_KEY, this);
     }, 100);
   }
 }

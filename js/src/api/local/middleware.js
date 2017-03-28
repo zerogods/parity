@@ -41,7 +41,7 @@ export default class LocalAccountsMiddleware extends Middleware {
     });
 
     register('eth_coinbase', () => {
-      return accounts.lastUsed();
+      return accounts.lastAddress;
     });
 
     register('parity_accountsInfo', () => {
@@ -61,7 +61,7 @@ export default class LocalAccountsMiddleware extends Middleware {
     });
 
     register('parity_defaultAccount', () => {
-      return accounts.lastUsed();
+      return accounts.lastAddress;
     });
 
     register('parity_generateSecretPhrase', () => {
@@ -97,7 +97,7 @@ export default class LocalAccountsMiddleware extends Middleware {
 
     register('parity_postTransaction', ([tx]) => {
       if (!tx.from) {
-        tx.from = accounts.lastUsed();
+        tx.from = accounts.lastAddress;
       }
 
       tx.nonce = null;
