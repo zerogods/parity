@@ -16,21 +16,21 @@
 
 import EthereumTx from 'ethereumjs-tx';
 import accounts from './accounts';
+import transactions from './transactions';
 import { Middleware } from '../transport';
-import { toHex } from '../util/format';
 import { inNumber16 } from '../format/input';
 import { phraseToWallet, phraseToAddress, randomPhrase } from './ethkey';
 
-// Maps transaction requests to transaction hashes.
-// This allows the locally-signed transactions to emulate the signer.
-const transactionHashes = {};
-const transactions = {};
-
-// Current transaction id. This doesn't need to be stored, as it's
-// only relevant for the current the session.
-let transactionId = 1;
-
 export default class LocalAccountsMiddleware extends Middleware {
+  // Maps transaction requests to transaction hashes.
+  // This allows the locally-signed transactions to emulate the signer.
+  transactionHashes = {};
+  transactions = {};
+
+  // Current transaction id. This doesn't need to be stored, as it's
+  // only relevant for the current the session.
+  transactionId = 1;
+
   constructor (transport) {
     super(transport);
 
@@ -57,7 +57,7 @@ export default class LocalAccountsMiddleware extends Middleware {
     });
 
     register('parity_checkRequest', ([id]) => {
-      return transactionHashes[id] || Promise.resolve(null);
+      return transactions.hash(id) || Promise.resolve(null);
     });
 
     register('parity_defaultAccount', () => {
@@ -95,19 +95,15 @@ export default class LocalAccountsMiddleware extends Middleware {
       return true;
     });
 
-    register('parity_postTransaction', ([transaction]) => {
-      if (transaction.from == null) {
-        transaction.from = accounts.lastUsed();
+    register('parity_postTransaction', ([tx]) => {
+      if (!tx.from) {
+        tx.from = accounts.lastUsed();
       }
 
-      transaction.nonce = null;
-      transaction.condition = null;
+      tx.nonce = null;
+      tx.condition = null;
 
-      const id = toHex(transactionId++);
-
-      transactions[id] = { sendTransaction: transaction };
-
-      return id;
+      return transactions.add(tx);
     });
 
     register('parity_phraseToAddress', ([phrase]) => {
@@ -140,7 +136,7 @@ export default class LocalAccountsMiddleware extends Middleware {
         to,
         value,
         data
-      } = Object.assign(transactions[id].sendTransaction, modify);
+      } = Object.assign(transactions.get(id), modify);
 
       return this
         .rpcRequest('parity_nextNonce', [from])
@@ -162,22 +158,18 @@ export default class LocalAccountsMiddleware extends Middleware {
           return this.rpcRequest('eth_sendRawTransaction', [serializedTx]);
         })
         .then((hash) => {
-          delete transactions[id];
-
-          transactionHashes[id] = hash;
+          transactions.confirm(id, hash);
 
           return {};
         });
     });
 
+    register('signer_rejectRequest', ([id]) => {
+      return transactions.reject(id);
+    });
+
     register('signer_requestsToConfirm', () => {
-      return Object.keys(transactions).map((id) => {
-        return {
-          id,
-          origin: {},
-          payload: transactions[id]
-        };
-      });
+      return transactions.requestsToConfirm();
     });
   }
 }

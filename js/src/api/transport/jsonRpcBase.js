@@ -55,11 +55,22 @@ export default class JsonRpcBase extends EventEmitter {
       });
   }
 
-  _wrapHandlerResult (result) {
+  _wrapSuccessResult (result) {
     return {
       id: this._id,
       jsonrpc: '2.0',
       result
+    };
+  }
+
+  _wrapErrorResult (error) {
+    return {
+      id: this._id,
+      jsonrpc: '2.0',
+      error: {
+        code: error.code,
+        message: error.text
+      }
     };
   }
 
@@ -69,7 +80,7 @@ export default class JsonRpcBase extends EventEmitter {
         const res = middleware.handle(method, params);
 
         if (res != null) {
-          const result = this._wrapHandlerResult(res);
+          const result = this._wrapSuccessResult(res);
           const json = this.encode(method, params);
 
           Logging.send(method, params, { json, result });

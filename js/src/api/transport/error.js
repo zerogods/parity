@@ -42,6 +42,8 @@ export const ERROR_CODES = {
 };
 
 export default class TransportError extends ExtendableError {
+  static ERROR_CODES = ERROR_CODES;
+
   constructor (method, code, message) {
     const m = `${method}: ${code}: ${message}`;
 
